@@ -1,0 +1,94 @@
+services:
+  # 1. Service Discovery Registry (Starts First)
+  eureka-server:
+    build: ./eureka-server
+    container_name: mhtcet-eureka
+    ports:
+      - "127.0.0.1:8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8761/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mhtcet-net
+
+  # 2. API Gateway (Single Public Entry Point on Port 8080)
+  api-gateway:
+    build: ./api-gateway
+    container_name: mhtcet-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - mhtcet-net
+
+  # 3. Identity & Auth Service (JWT Issuer)
+  identity-service:
+    build: ./identity-service
+    container_name: mhtcet-identity
+    ports:
+      - "127.0.0.1:8084:8084"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - mhtcet-net
+
+  # 4. Question Bank Service
+  question-bank-service:
+    build: ./question-bank-service
+    container_name: mhtcet-qbank
+    ports:
+      - "127.0.0.1:8081:8081"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - mhtcet-net
+
+  # 5. Test Engine Service
+  test-engine-service:
+    build: ./test-engine-service
+    container_name: mhtcet-test-engine
+    ports:
+      - "127.0.0.1:8082:8082"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      question-bank-service:
+        condition: service_started
+    networks:
+      - mhtcet-net
+
+  # 6. Evaluation & Scoring Service
+  evaluation-service:
+    build: ./evaluation-service
+    container_name: mhtcet-evaluation
+    ports:
+      - "127.0.0.1:8083:8083"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      question-bank-service:
+        condition: service_started
+      test-engine-service:
+        condition: service_started
+    networks:
+      - mhtcet-net
+
+networks:
+  mhtcet-net:
+    driver: bridge
